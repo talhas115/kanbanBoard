@@ -1,0 +1,6 @@
+@VibeFlow.KanbanBoard_HostAddress = http://localhost:5095
+
+GET {{VibeFlow.KanbanBoard_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

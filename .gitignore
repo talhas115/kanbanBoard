@@ -1,0 +1,27 @@
+# Build folders
+bin/
+obj/
+build/
+dist/
+
+# Node modules
+node_modules/
+.npm/
+
+# IDE files
+.vs/
+.vscode/
+*.swp
+*.user
+*.suo
+
+# Environment files
+.env
+.env.local
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Docker volumes
+pgdata/
