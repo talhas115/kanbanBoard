@@ -1,37 +1,49 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { DndContext, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { useParams, Link } from 'react-router-dom';
+import { DndContext, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import Column from './Column';
+import TaskCard from './TaskCard';
 import CreateTask from './CreateTask';
 import useTaskStore from '../store/taskStore';
+import useProjectStore from '../store/projectStore';
 import useAuthStore from '../store/authStore';
+import { useNavigate } from 'react-router-dom';
 
 const KanbanBoard = () => {
+  const { projectId } = useParams();
   const { fetchTasks, fetchUsers, loading, error, moveTask, tasks, users } = useTaskStore();
+  const { projects, currentProject, fetchProjects } = useProjectStore();
   const { user: currentUser } = useAuthStore();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterUser, setFilterUser] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [showOnlyMine, setShowOnlyMine] = useState(false);
+  const [activeTask, setActiveTask] = useState(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
 
   useEffect(() => {
-    fetchTasks();
+    fetchTasks(projectId);
     fetchUsers();
+    fetchProjects();
 
     const interval = setInterval(() => {
-      fetchTasks(true);
+      fetchTasks(projectId, true);
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [fetchTasks, fetchUsers]);
+  }, [fetchTasks, fetchUsers, fetchProjects, projectId]);
 
   const columns = [
     'Backlog', 'Todo', 'In Progress', 'In Review', 'QA', 'Blocked', 'Ready For Release', 'Done'
@@ -60,8 +72,15 @@ const KanbanBoard = () => {
     return email.split('@')[0].substring(0, 2).toUpperCase();
   };
 
+  const handleDragStart = (event) => {
+    const { active } = event;
+    const task = tasks.find(t => t.id === active.id);
+    setActiveTask(task);
+  };
+
   const handleDragEnd = async event => {
     const { active, over } = event;
+    setActiveTask(null);
     if (!over) return;
 
     const taskId = active.id;
@@ -90,7 +109,7 @@ const KanbanBoard = () => {
     }
 
     if (newStatus !== activeTask.status || newOrder !== activeTask.order) {
-      await moveTask(taskId, newOrder, newStatus);
+      await moveTask(taskId, newOrder, newStatus, projectId);
     }
   };
 
@@ -107,8 +126,19 @@ const KanbanBoard = () => {
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col mb-8 gap-4">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">Project Board</h1>
-            <CreateTask />
+            <div className="flex items-center gap-3">
+              <Link to="/projects" className="text-gray-400 hover:text-brand transition-colors">
+                Projects
+              </Link>
+              <span className="text-gray-300">/</span>
+              <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
+                {projects.find(p => p.id === projectId)?.name || 'Project Board'}
+              </h1>
+              <span className="ml-2 px-2 py-0.5 bg-gray-100 dark:bg-slate-800 text-gray-500 rounded text-[10px] font-bold uppercase tracking-widest">
+                {projects.find(p => p.id === projectId)?.key}
+              </span>
+            </div>
+            <CreateTask projectId={projectId} />
           </div>
 
           {/* Jira-Style Filter Bar */}
@@ -179,6 +209,7 @@ const KanbanBoard = () => {
         <DndContext 
           sensors={sensors}
           collisionDetection={closestCorners} 
+          onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
           <div className="flex gap-6 overflow-x-auto pb-6 custom-scrollbar items-start">
@@ -187,9 +218,18 @@ const KanbanBoard = () => {
                 key={column} 
                 title={column} 
                 tasks={getFilteredTasksByColumn(column)}
+                projectId={projectId}
               />
             ))}
           </div>
+
+          <DragOverlay adjustScale={true}>
+            {activeTask ? (
+              <div className="rotate-3 scale-105 transition-transform">
+                <TaskCard task={activeTask} isOverlay />
+              </div>
+            ) : null}
+          </DragOverlay>
         </DndContext>
       </div>
     </div>

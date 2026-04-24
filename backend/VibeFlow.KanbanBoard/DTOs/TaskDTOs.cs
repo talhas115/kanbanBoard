@@ -11,6 +11,10 @@ public class CreateTaskRequest
     public string Description { get; set; } = string.Empty;
     public DateTime? DueDate { get; set; }
     public Guid? AssigneeId { get; set; }
+    [Required]
+    public Guid ProjectId { get; set; }
+    public int Type { get; set; }
+    public Guid? ParentTaskId { get; set; }
 }
 
 public class UpdateTaskRequest
@@ -23,6 +27,8 @@ public class UpdateTaskRequest
     public Guid? AssigneeId { get; set; }
     public string Status { get; set; } = string.Empty;
     public int Order { get; set; }
+    public int? Type { get; set; }
+    public Guid? ParentTaskId { get; set; }
 }
 
 public class MoveTaskRequest
@@ -56,8 +62,16 @@ public class TaskResponse
     public string CreatedByEmail { get; set; } = string.Empty;
     public Guid? AssigneeId { get; set; }
     public string AssigneeEmail { get; set; } = string.Empty;
+    public Guid ProjectId { get; set; }
+    public string ProjectName { get; set; } = string.Empty;
+    public int Type { get; set; }
+    public string TypeName { get; set; } = string.Empty;
+    public Guid? ParentTaskId { get; set; }
+    public string ParentTaskTitle { get; set; } = string.Empty;
+    public List<TaskResponse> Subtasks { get; set; } = new();
     public List<AssignmentHistoryResponse> History { get; set; } = new();
     public List<WorkLogResponse> WorkLogs { get; set; } = new();
+    public List<CommentResponse> Comments { get; set; } = new();
 }
 
 public class WorkLogResponse
@@ -80,7 +94,6 @@ public class WorkLogRequest
     public string Description { get; set; } = string.Empty;
 }
 
-
 public class TimeReportResponse
 {
     public Guid TaskId { get; set; }
@@ -95,4 +108,20 @@ public class GlobalTimeReportResponse
 {
     public List<TimeReportResponse> TaskReports { get; set; } = new List<TimeReportResponse>();
     public decimal GlobalTotalHours { get; set; }
+}
+
+public class CommentRequest
+{
+    [Required]
+    public string Content { get; set; } = string.Empty;
+}
+
+public class CommentResponse
+{
+    public Guid Id { get; set; }
+    public Guid TaskId { get; set; }
+    public Guid UserId { get; set; }
+    public string UserEmail { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
 }

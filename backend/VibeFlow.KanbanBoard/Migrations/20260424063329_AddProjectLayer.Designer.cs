@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using VibeFlow.KanbanBoard.Data;
@@ -11,9 +12,11 @@ using VibeFlow.KanbanBoard.Data;
 namespace VibeFlow.KanbanBoard.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260424063329_AddProjectLayer")]
+    partial class AddProjectLayer
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -54,34 +57,6 @@ namespace VibeFlow.KanbanBoard.Migrations
                     b.HasIndex("TaskId");
 
                     b.ToTable("AssignmentHistories");
-                });
-
-            modelBuilder.Entity("VibeFlow.KanbanBoard.Models.Comment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("TaskId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TaskId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Comments");
                 });
 
             modelBuilder.Entity("VibeFlow.KanbanBoard.Models.Project", b =>
@@ -142,9 +117,6 @@ namespace VibeFlow.KanbanBoard.Migrations
                     b.Property<int>("Order")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("ParentTaskId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid");
 
@@ -157,16 +129,11 @@ namespace VibeFlow.KanbanBoard.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
-                    b.Property<int>("Type")
-                        .HasColumnType("integer");
-
                     b.HasKey("Id");
 
                     b.HasIndex("AssigneeId");
 
                     b.HasIndex("CreatedById");
-
-                    b.HasIndex("ParentTaskId");
 
                     b.HasIndex("ProjectId");
 
@@ -261,25 +228,6 @@ namespace VibeFlow.KanbanBoard.Migrations
                     b.Navigation("Task");
                 });
 
-            modelBuilder.Entity("VibeFlow.KanbanBoard.Models.Comment", b =>
-                {
-                    b.HasOne("VibeFlow.KanbanBoard.Models.Task", "Task")
-                        .WithMany("Comments")
-                        .HasForeignKey("TaskId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("VibeFlow.KanbanBoard.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Task");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("VibeFlow.KanbanBoard.Models.Project", b =>
                 {
                     b.HasOne("VibeFlow.KanbanBoard.Models.User", "Owner")
@@ -304,11 +252,6 @@ namespace VibeFlow.KanbanBoard.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("VibeFlow.KanbanBoard.Models.Task", "ParentTask")
-                        .WithMany("Subtasks")
-                        .HasForeignKey("ParentTaskId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
                     b.HasOne("VibeFlow.KanbanBoard.Models.Project", "Project")
                         .WithMany("Tasks")
                         .HasForeignKey("ProjectId")
@@ -318,8 +261,6 @@ namespace VibeFlow.KanbanBoard.Migrations
                     b.Navigation("Assignee");
 
                     b.Navigation("CreatedByUser");
-
-                    b.Navigation("ParentTask");
 
                     b.Navigation("Project");
                 });
@@ -351,10 +292,6 @@ namespace VibeFlow.KanbanBoard.Migrations
             modelBuilder.Entity("VibeFlow.KanbanBoard.Models.Task", b =>
                 {
                     b.Navigation("AssignmentHistories");
-
-                    b.Navigation("Comments");
-
-                    b.Navigation("Subtasks");
 
                     b.Navigation("WorkLogs");
                 });

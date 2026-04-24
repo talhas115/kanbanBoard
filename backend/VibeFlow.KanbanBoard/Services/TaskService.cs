@@ -12,12 +12,13 @@ public interface ITaskService
     System.Threading.Tasks.Task<TaskResponse> UpdateTaskAsync(Guid taskId, UpdateTaskRequest request, Guid userId);
     System.Threading.Tasks.Task DeleteTaskAsync(Guid taskId);
     System.Threading.Tasks.Task<TaskResponse> GetTaskAsync(Guid taskId);
-    System.Threading.Tasks.Task<List<TaskResponse>> GetAllTasksAsync();
-    System.Threading.Tasks.Task<List<TaskResponse>> GetTasksByStatusAsync(string status);
+    System.Threading.Tasks.Task<List<TaskResponse>> GetAllTasksAsync(Guid? projectId = null);
+    System.Threading.Tasks.Task<List<TaskResponse>> GetTasksByStatusAsync(string status, Guid? projectId = null);
     System.Threading.Tasks.Task MoveTaskAsync(Guid taskId, MoveTaskRequest request);
     System.Threading.Tasks.Task AssignTaskAsync(Guid taskId, Guid? assigneeId, Guid changedByUserId);
     System.Threading.Tasks.Task<WorkLogResponse> AddWorkLogAsync(Guid taskId, WorkLogRequest request, Guid userId);
-    System.Threading.Tasks.Task<GlobalTimeReportResponse> GetTimeReportAsync();
+    System.Threading.Tasks.Task<CommentResponse> AddCommentAsync(Guid taskId, CommentRequest request, Guid userId);
+    System.Threading.Tasks.Task<GlobalTimeReportResponse> GetTimeReportAsync(Guid? projectId = null);
 }
 
 public class TaskService : ITaskService
@@ -45,9 +46,12 @@ public class TaskService : ITaskService
             Status = "Backlog",
             Order = maxOrder + 1,
             DueDate = request.DueDate,
+            ProjectId = request.ProjectId,
             CreatedById = userId,
             CreatedAt = DateTime.UtcNow,
-            AssigneeId = request.AssigneeId
+            AssigneeId = request.AssigneeId,
+            Type = (IssueType)request.Type,
+            ParentTaskId = request.ParentTaskId
         };
 
         var created = await _taskRepository.CreateAsync(task);
@@ -88,6 +92,12 @@ public class TaskService : ITaskService
             await AssignTaskAsync(taskId, request.AssigneeId, userId);
         }
 
+        if (request.Type.HasValue)
+            task.Type = (IssueType)request.Type.Value;
+
+        if (request.ParentTaskId.HasValue)
+            task.ParentTaskId = request.ParentTaskId.Value == Guid.Empty ? null : request.ParentTaskId;
+
         if (!string.IsNullOrEmpty(request.Status) || request.Order != task.Order)
         {
             await _taskRepository.UpdateOrderAsync(taskId, request.Order, request.Status);
@@ -113,15 +123,51 @@ public class TaskService : ITaskService
         return MapToResponse(task);
     }
 
-    public async System.Threading.Tasks.Task<List<TaskResponse>> GetAllTasksAsync()
+    public async System.Threading.Tasks.Task<List<TaskResponse>> GetAllTasksAsync(Guid? projectId = null)
     {
-        var tasks = await _taskRepository.GetAllAsync();
+        var tasks = await _context.Tasks
+            .Include(t => t.CreatedByUser)
+            .Include(t => t.Assignee)
+            .Include(t => t.Project)
+            .Include(t => t.ParentTask)
+            .Include(t => t.Subtasks)
+            .Include(t => t.Comments)
+                .ThenInclude(c => c.User)
+            .Include(t => t.AssignmentHistories)
+                .ThenInclude(h => h.OldAssignee)
+            .Include(t => t.AssignmentHistories)
+                .ThenInclude(h => h.NewAssignee)
+            .Include(t => t.AssignmentHistories)
+                .ThenInclude(h => h.ChangedByUser)
+            .Include(t => t.WorkLogs)
+                .ThenInclude(w => w.User)
+            .Where(t => !projectId.HasValue || t.ProjectId == projectId.Value)
+            .OrderBy(t => t.Order)
+            .ToListAsync();
         return tasks.Select(MapToResponse).ToList();
     }
 
-    public async System.Threading.Tasks.Task<List<TaskResponse>> GetTasksByStatusAsync(string status)
+    public async System.Threading.Tasks.Task<List<TaskResponse>> GetTasksByStatusAsync(string status, Guid? projectId = null)
     {
-        var tasks = await _taskRepository.GetByStatusAsync(status);
+        var tasks = await _context.Tasks
+            .Include(t => t.CreatedByUser)
+            .Include(t => t.Assignee)
+            .Include(t => t.Project)
+            .Include(t => t.ParentTask)
+            .Include(t => t.Subtasks)
+            .Include(t => t.Comments)
+                .ThenInclude(c => c.User)
+            .Include(t => t.AssignmentHistories)
+                .ThenInclude(h => h.OldAssignee)
+            .Include(t => t.AssignmentHistories)
+                .ThenInclude(h => h.NewAssignee)
+            .Include(t => t.AssignmentHistories)
+                .ThenInclude(h => h.ChangedByUser)
+            .Include(t => t.WorkLogs)
+                .ThenInclude(w => w.User)
+            .Where(t => t.Status == status && (!projectId.HasValue || t.ProjectId == projectId.Value))
+            .OrderBy(t => t.Order)
+            .ToListAsync();
         return tasks.Select(MapToResponse).ToList();
     }
 
@@ -186,11 +232,41 @@ public class TaskService : ITaskService
         };
     }
 
-    public async System.Threading.Tasks.Task<GlobalTimeReportResponse> GetTimeReportAsync()
+    public async System.Threading.Tasks.Task<CommentResponse> AddCommentAsync(Guid taskId, CommentRequest request, Guid userId)
+    {
+        var task = await _taskRepository.GetByIdAsync(taskId);
+        if (task == null) throw new KeyNotFoundException("Task not found");
+
+        var comment = new Comment
+        {
+            Id = Guid.NewGuid(),
+            TaskId = taskId,
+            UserId = userId,
+            Content = request.Content,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Comments.Add(comment);
+        await _context.SaveChangesAsync();
+
+        var user = await _context.Users.FindAsync(userId);
+        return new CommentResponse
+        {
+            Id = comment.Id,
+            TaskId = comment.TaskId,
+            UserId = comment.UserId,
+            UserEmail = user?.Email ?? string.Empty,
+            Content = comment.Content,
+            CreatedAt = comment.CreatedAt
+        };
+    }
+
+    public async System.Threading.Tasks.Task<GlobalTimeReportResponse> GetTimeReportAsync(Guid? projectId = null)
     {
         var report = await _context.Tasks
             .Include(t => t.Assignee)
             .Include(t => t.WorkLogs)
+            .Where(t => !projectId.HasValue || t.ProjectId == projectId.Value)
             .Select(t => new TimeReportResponse
             {
                 TaskId = t.Id,
@@ -213,6 +289,11 @@ public class TaskService : ITaskService
 
     private TaskResponse MapToResponse(Models.Task task)
     {
+        return MapToResponse(task, true);
+    }
+
+    private TaskResponse MapToResponse(Models.Task task, bool mapSubtasks)
+    {
         return new TaskResponse
         {
             Id = task.Id,
@@ -226,6 +307,13 @@ public class TaskService : ITaskService
             CreatedByEmail = task.CreatedByUser?.Email ?? string.Empty,
             AssigneeId = task.AssigneeId,
             AssigneeEmail = task.Assignee?.Email ?? string.Empty,
+            ProjectId = task.ProjectId,
+            ProjectName = task.Project?.Name ?? string.Empty,
+            Type = (int)task.Type,
+            TypeName = task.Type.ToString(),
+            ParentTaskId = task.ParentTaskId,
+            ParentTaskTitle = task.ParentTask?.Title ?? string.Empty,
+            Subtasks = mapSubtasks && task.Subtasks != null ? task.Subtasks.Select(s => MapToResponse(s, false)).ToList() : new List<TaskResponse>(),
             History = task.AssignmentHistories?
                 .OrderByDescending(h => h.ChangedAt)
                 .Select(h => new AssignmentHistoryResponse
@@ -250,7 +338,18 @@ public class TaskService : ITaskService
                     Hours = w.Hours,
                     Description = w.Description ?? string.Empty,
                     LoggedAt = w.LoggedAt
-                }).ToList() ?? new List<WorkLogResponse>()
+                }).ToList() ?? new List<WorkLogResponse>(),
+            Comments = task.Comments?
+                .OrderByDescending(c => c.CreatedAt)
+                .Select(c => new CommentResponse
+                {
+                    Id = c.Id,
+                    TaskId = c.TaskId,
+                    UserId = c.UserId,
+                    UserEmail = c.User?.Email ?? string.Empty,
+                    Content = c.Content,
+                    CreatedAt = c.CreatedAt
+                }).ToList() ?? new List<CommentResponse>()
         };
     }
 }

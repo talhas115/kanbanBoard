@@ -8,9 +8,11 @@ public class ApplicationDbContext : DbContext
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
     public DbSet<User> Users { get; set; }
+    public DbSet<Project> Projects { get; set; }
     public DbSet<Models.Task> Tasks { get; set; }
     public DbSet<AssignmentHistory> AssignmentHistories { get; set; }
     public DbSet<WorkLog> WorkLogs { get; set; }
+    public DbSet<Comment> Comments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,6 +27,24 @@ public class ApplicationDbContext : DbContext
             .WithMany(u => u.AssignedTasks)
             .HasForeignKey(t => t.AssigneeId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Models.Task>()
+            .HasOne(t => t.Project)
+            .WithMany(p => p.Tasks)
+            .HasForeignKey(t => t.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Models.Task>()
+            .HasOne(t => t.ParentTask)
+            .WithMany(t => t.Subtasks)
+            .HasForeignKey(t => t.ParentTaskId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Project>()
+            .HasOne(p => p.Owner)
+            .WithMany()
+            .HasForeignKey(p => p.OwnerId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<AssignmentHistory>()
             .HasOne(ah => ah.Task)
@@ -60,6 +80,18 @@ public class ApplicationDbContext : DbContext
             .HasOne(wl => wl.User)
             .WithMany(u => u.WorkLogs)
             .HasForeignKey(wl => wl.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Comment>()
+            .HasOne(c => c.Task)
+            .WithMany(t => t.Comments)
+            .HasForeignKey(c => c.TaskId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Comment>()
+            .HasOne(c => c.User)
+            .WithMany()
+            .HasForeignKey(c => c.UserId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -18,10 +18,15 @@ const useTaskStore = create((set, get) => ({
   loading: false,
   error: null,
 
-  fetchTasks: async (silent = false) => {
+  fetchTasks: async (projectId = null, silent = false) => {
+    if (typeof projectId === 'boolean') {
+      silent = projectId;
+      projectId = null;
+    }
     if (!silent) set({ loading: true, error: null });
     try {
-      const tasks = await apiClient.get('/tasks');
+      const url = projectId ? `/tasks?projectId=${projectId}` : '/tasks';
+      const tasks = await apiClient.get(url);
       set({ tasks, loading: false });
     } catch (error) {
       set({ error: error.message, loading: false });
@@ -70,36 +75,61 @@ const useTaskStore = create((set, get) => ({
     }
   },
 
-  moveTask: async (taskId, newOrder, newStatus) => {
+  moveTask: async (taskId, newOrder, newStatus, projectId = null) => {
+    // Optimistic update
+    const oldTasks = get().tasks;
+    const taskIndex = oldTasks.findIndex(t => t.id === taskId);
+    if (taskIndex === -1) return;
+
+    const task = { ...oldTasks[taskIndex], status: newStatus, order: newOrder };
+    const updatedTasks = [...oldTasks];
+    updatedTasks[taskIndex] = task;
+
+    set({ tasks: updatedTasks });
+
     try {
       await apiClient.post(`/tasks/${taskId}/move`, { newOrder, newStatus });
-      await get().fetchTasks();
+      // We don't need a full silent refetch immediately since we updated state
+      // But we can do it after a delay to ensure sync
+      setTimeout(() => get().fetchTasks(projectId, true), 2000);
     } catch (error) {
+      // Rollback on error
+      set({ tasks: oldTasks, error: 'Failed to sync drag and drop. Reverting...' });
       throw error;
     }
   },
 
-  assignTask: async (taskId, assigneeId) => {
+  assignTask: async (taskId, assigneeId, projectId = null) => {
     try {
       await apiClient.post(`/tasks/${taskId}/assign`, assigneeId);
-      await get().fetchTasks();
+      await get().fetchTasks(projectId, true);
     } catch (error) {
       throw error;
     }
   },
 
-  addWorkLog: async (taskId, hours, description) => {
+  addWorkLog: async (taskId, hours, description, projectId = null) => {
     try {
       await apiClient.post(`/tasks/${taskId}/worklogs`, { hours, description });
-      await get().fetchTasks(); // Refresh to show new log and updated total time
+      await get().fetchTasks(projectId, true); // Refresh to show new log and updated total time
     } catch (error) {
       throw error;
     }
   },
 
-  getTimeReport: async () => {
+  addComment: async (taskId, content, projectId = null) => {
     try {
-      const report = await apiClient.get('/tasks/reports/time');
+      await apiClient.post(`/tasks/${taskId}/comments`, { content });
+      await get().fetchTasks(projectId, true);
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  getTimeReport: async (projectId = null) => {
+    try {
+      const url = projectId ? `/tasks/reports/time?projectId=${projectId}` : '/tasks/reports/time';
+      const report = await apiClient.get(url);
       return report;
     } catch (error) {
       throw error;

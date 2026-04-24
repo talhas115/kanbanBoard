@@ -4,6 +4,7 @@ import useAuthStore from './store/authStore';
 import Login from './components/Login';
 import Register from './components/Register';
 import KanbanBoard from './components/KanbanBoard';
+import ProjectManagement from './components/ProjectManagement';
 import Reports from './components/Reports';
 import Navbar from './components/Navbar';
 
@@ -55,10 +56,26 @@ const App = () => {
           }
         />
         <Route
-          path="/"
+          path="/projects"
+          element={
+            <PrivateRoute>
+              <ProjectManagement />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/projects/:projectId/board"
           element={
             <PrivateRoute>
               <KanbanBoard />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/"
+          element={
+            <PrivateRoute>
+              <Navigate to="/projects" replace />
             </PrivateRoute>
           }
         />

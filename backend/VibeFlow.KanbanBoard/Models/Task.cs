@@ -36,6 +36,23 @@ public class Task
     [ForeignKey(nameof(AssigneeId))]
     public User Assignee { get; set; }
 
+    [Required]
+    public Guid ProjectId { get; set; }
+
+    [ForeignKey(nameof(ProjectId))]
+    public Project Project { get; set; }
+
+    [Required]
+    public IssueType Type { get; set; } = IssueType.Task;
+
+    public Guid? ParentTaskId { get; set; }
+
+    [ForeignKey(nameof(ParentTaskId))]
+    public Task ParentTask { get; set; }
+
+    public ICollection<Task> Subtasks { get; set; }
+
     public ICollection<AssignmentHistory> AssignmentHistories { get; set; }
     public ICollection<WorkLog> WorkLogs { get; set; }
+    public ICollection<Comment> Comments { get; set; }
 }

@@ -19,9 +19,9 @@ public class TaskController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<TaskResponse>>> GetAll()
+    public async Task<ActionResult<List<TaskResponse>>> GetAll(Guid? projectId)
     {
-        var tasks = await _taskService.GetAllTasksAsync();
+        var tasks = await _taskService.GetAllTasksAsync(projectId);
         return Ok(tasks);
     }
 
@@ -120,10 +120,25 @@ public class TaskController : ControllerBase
         }
     }
 
-    [HttpGet("reports/time")]
-    public async Task<ActionResult<GlobalTimeReportResponse>> GetTimeReport()
+    [HttpPost("{id}/comments")]
+    public async Task<ActionResult<CommentResponse>> AddComment(Guid id, CommentRequest request)
     {
-        var report = await _taskService.GetTimeReportAsync();
+        try
+        {
+            var userId = GetUserId();
+            var comment = await _taskService.AddCommentAsync(id, request, userId);
+            return Ok(comment);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    [HttpGet("reports/time")]
+    public async Task<ActionResult<GlobalTimeReportResponse>> GetTimeReport(Guid? projectId)
+    {
+        var report = await _taskService.GetTimeReportAsync(projectId);
         return Ok(report);
     }
 

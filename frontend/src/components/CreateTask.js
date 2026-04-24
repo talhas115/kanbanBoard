@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import useTaskStore from '../store/taskStore';
 
-const CreateTask = () => {
+const CreateTask = ({ projectId }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -9,8 +9,10 @@ const CreateTask = () => {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [type, setType] = useState(0); // 0 = Task
+  const [parentTaskId, setParentTaskId] = useState('');
 
-  const { createTask, users } = useTaskStore();
+  const { createTask, users, tasks } = useTaskStore();
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -27,12 +29,17 @@ const CreateTask = () => {
         title,
         description,
         dueDate: dueDate ? new Date(dueDate).toISOString() : null,
-        assigneeId: assigneeId || null
+        assigneeId: assigneeId || null,
+        projectId: projectId,
+        type: parseInt(type),
+        parentTaskId: parentTaskId || null
       });
       setTitle('');
       setDescription('');
       setDueDate('');
       setAssigneeId('');
+      setType(0);
+      setParentTaskId('');
       setShowForm(false);
     } catch (err) {
       setError(err.message || 'Failed to create task');
@@ -89,6 +96,45 @@ const CreateTask = () => {
             placeholder="Add some details about this task..."
             disabled={loading}
           />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Issue Type</label>
+            <select
+              value={type}
+              onChange={e => {
+                const newType = parseInt(e.target.value);
+                setType(newType);
+                if (newType !== 3) setParentTaskId('');
+              }}
+              className="w-full bg-gray-50 dark:bg-slate-800 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none transition-all font-medium"
+              disabled={loading}
+            >
+              <option value="0">Task</option>
+              <option value="1">Story</option>
+              <option value="2">Bug</option>
+              <option value="3">Subtask</option>
+            </select>
+          </div>
+          
+          {type == 3 && (
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Parent Task</label>
+              <select
+                required={type == 3}
+                value={parentTaskId}
+                onChange={e => setParentTaskId(e.target.value)}
+                className="w-full bg-gray-50 dark:bg-slate-800 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none transition-all font-medium"
+                disabled={loading}
+              >
+                <option value="">Select Parent...</option>
+                {tasks.filter(t => t.type !== 3).map(task => (
+                  <option key={task.id} value={task.id}>[{task.typeName}] {task.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

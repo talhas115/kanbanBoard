@@ -31,7 +31,7 @@ const Navbar = ({ darkMode, toggleDarkMode }) => {
 
             {isAuthenticated ? (
               <>
-                <Link to="/" className="text-white hover:text-gray-200 transition-colors font-medium">Board</Link>
+                <Link to="/projects" className="text-white hover:text-gray-200 transition-colors font-medium">Projects</Link>
                 <Link to="/reports/time" className="text-white hover:text-gray-200 transition-colors font-medium">Reports</Link>
                 <div className="h-6 w-px bg-brand-light/30 mx-1"></div>
                 <div className="flex items-center space-x-3">
