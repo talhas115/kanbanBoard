@@ -25,10 +25,8 @@ const useTaskStore = create((set, get) => ({
   initSignalR: async () => {
     if (get().connection) return;
 
-    const apiBaseUrl = (process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/$/, '');
-    const hubUrl = apiBaseUrl.endsWith('/api') 
-      ? apiBaseUrl.substring(0, apiBaseUrl.length - 4) + '/taskhub'
-      : apiBaseUrl + '/taskhub';
+    const isLocalDev = window.location.hostname === 'localhost' && window.location.port === '3000';
+    const hubUrl = isLocalDev ? 'http://localhost:5000/taskhub' : '/taskhub';
 
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(hubUrl, {

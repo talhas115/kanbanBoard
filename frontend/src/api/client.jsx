@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+  baseURL: (window.location.hostname === 'localhost' && window.location.port === '3000') 
+           ? 'http://localhost:5000/api' 
+           : '/api',
   headers: {
     'Content-Type': 'application/json'
   }
