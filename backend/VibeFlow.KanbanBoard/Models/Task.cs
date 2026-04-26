@@ -36,6 +36,14 @@ public class Task
     [ForeignKey(nameof(AssigneeId))]
     public User Assignee { get; set; }
 
+    public Task()
+    {
+        AssignmentHistories = new List<AssignmentHistory>();
+        WorkLogs = new List<WorkLog>();
+        Comments = new List<Comment>();
+    }
+
     public ICollection<AssignmentHistory> AssignmentHistories { get; set; }
     public ICollection<WorkLog> WorkLogs { get; set; }
+    public ICollection<Comment> Comments { get; set; }
 }

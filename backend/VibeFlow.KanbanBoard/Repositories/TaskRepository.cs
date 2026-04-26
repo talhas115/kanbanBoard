@@ -26,6 +26,8 @@ public class TaskRepository : ITaskRepository
                 .ThenInclude(h => h.ChangedByUser)
             .Include(t => t.WorkLogs)
                 .ThenInclude(w => w.User)
+            .Include(t => t.Comments)
+                .ThenInclude(c => c.User)
             .FirstOrDefaultAsync(t => t.Id == id);
     }
 
@@ -42,6 +44,8 @@ public class TaskRepository : ITaskRepository
                 .ThenInclude(h => h.ChangedByUser)
             .Include(t => t.WorkLogs)
                 .ThenInclude(w => w.User)
+            .Include(t => t.Comments)
+                .ThenInclude(c => c.User)
             .OrderBy(t => t.Order)
             .ToListAsync();
     }

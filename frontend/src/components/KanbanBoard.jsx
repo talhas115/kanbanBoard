@@ -1,22 +1,28 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { DndContext, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, DragOverlay, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import Column from './Column';
+import TaskCard from './TaskCard'; // Added for DragOverlay
 import CreateTask from './CreateTask';
 import useTaskStore from '../store/taskStore';
 import useAuthStore from '../store/authStore';
 
 const KanbanBoard = () => {
-  const { fetchTasks, fetchUsers, loading, error, moveTask, tasks, users } = useTaskStore();
+  const { fetchTasks, fetchUsers, loading, error, moveTask, tasks, users, initSignalR, isSignalRConnected } = useTaskStore();
   const { user: currentUser } = useAuthStore();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterUser, setFilterUser] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [showOnlyMine, setShowOnlyMine] = useState(false);
+  const [activeId, setActiveId] = useState(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -25,13 +31,8 @@ const KanbanBoard = () => {
   useEffect(() => {
     fetchTasks();
     fetchUsers();
-
-    const interval = setInterval(() => {
-      fetchTasks(true);
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [fetchTasks, fetchUsers]);
+    initSignalR();
+  }, [fetchTasks, fetchUsers, initSignalR]);
 
   const columns = [
     'Backlog', 'Todo', 'In Progress', 'In Review', 'QA', 'Blocked', 'Ready For Release', 'Done'
@@ -60,8 +61,13 @@ const KanbanBoard = () => {
     return email.split('@')[0].substring(0, 2).toUpperCase();
   };
 
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id);
+  };
+
   const handleDragEnd = async event => {
     const { active, over } = event;
+    setActiveId(null);
     if (!over) return;
 
     const taskId = active.id;
@@ -107,7 +113,15 @@ const KanbanBoard = () => {
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col mb-8 gap-4">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">Project Board</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">Project Board</h1>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 shadow-sm">
+                <div className={`h-2 w-2 rounded-full ${isSignalRConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {isSignalRConnected ? 'Live' : 'Offline'}
+                </span>
+              </div>
+            </div>
             <CreateTask />
           </div>
 
@@ -179,6 +193,7 @@ const KanbanBoard = () => {
         <DndContext 
           sensors={sensors}
           collisionDetection={closestCorners} 
+          onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
           <div className="flex gap-6 overflow-x-auto pb-6 custom-scrollbar items-start">
@@ -190,6 +205,22 @@ const KanbanBoard = () => {
               />
             ))}
           </div>
+
+          <DragOverlay dropAnimation={{
+            sideEffects: defaultDropAnimationSideEffects({
+              styles: {
+                active: {
+                  opacity: '0.5',
+                },
+              },
+            }),
+          }}>
+            {activeId ? (
+              <div className="rotate-1 scale-105 shadow-2xl opacity-90 transition-transform duration-200">
+                <TaskCard task={tasks.find(t => t.id === activeId)} isOverlay />
+              </div>
+            ) : null}
+          </DragOverlay>
         </DndContext>
       </div>
     </div>

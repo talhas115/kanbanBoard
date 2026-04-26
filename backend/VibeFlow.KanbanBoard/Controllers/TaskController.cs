@@ -40,7 +40,7 @@ public class TaskController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<TaskResponse>> Create(CreateTaskRequest request)
+    public async Task<ActionResult<TaskResponse>> Create([FromBody] CreateTaskRequest request)
     {
         var userId = GetUserId();
         var task = await _taskService.CreateTaskAsync(request, userId);
@@ -48,7 +48,7 @@ public class TaskController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<TaskResponse>> Update(Guid id, UpdateTaskRequest request)
+    public async Task<ActionResult<TaskResponse>> Update(Guid id, [FromBody] UpdateTaskRequest request)
     {
         try
         {
@@ -77,7 +77,7 @@ public class TaskController : ControllerBase
     }
 
     [HttpPost("{id}/move")]
-    public async Task<IActionResult> Move(Guid id, MoveTaskRequest request)
+    public async Task<IActionResult> Move(Guid id, [FromBody] MoveTaskRequest request)
     {
         try
         {
@@ -91,32 +91,65 @@ public class TaskController : ControllerBase
     }
 
     [HttpPost("{id}/assign")]
-    public async Task<IActionResult> Assign(Guid id, [FromBody] Guid? assigneeId)
+    public async Task<IActionResult> Assign(Guid id, [FromBody] AssignTaskRequest request)
     {
         try
         {
+            Console.WriteLine($"[DEBUG] Assigning task {id} to {request?.AssigneeId}");
             var userId = GetUserId();
-            await _taskService.AssignTaskAsync(id, assigneeId, userId);
+            await _taskService.AssignTaskAsync(id, request.AssigneeId, userId);
             return NoContent();
         }
         catch (KeyNotFoundException)
         {
             return NotFound();
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ERROR] Assignment failed: {ex.Message}");
+            return StatusCode(500, ex.Message);
+        }
     }
 
     [HttpPost("{id}/worklogs")]
-    public async Task<ActionResult<WorkLogResponse>> AddWorkLog(Guid id, WorkLogRequest request)
+    public async Task<ActionResult<WorkLogResponse>> AddWorkLog(Guid id, [FromBody] WorkLogRequest request)
     {
         try
         {
+            Console.WriteLine($"[DEBUG] Adding worklog to task {id}: {request.Hours} hrs");
             var userId = GetUserId();
-            var workLog = await _taskService.AddWorkLogAsync(id, request, userId);
-            return Ok(workLog);
+            var response = await _taskService.AddWorkLogAsync(id, request, userId);
+            return Ok(response);
         }
         catch (KeyNotFoundException)
         {
             return NotFound();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ERROR] AddWorkLog failed: {ex.Message}");
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpPost("{id}/comments")]
+    public async Task<ActionResult<CommentResponse>> AddComment(Guid id, [FromBody] CommentRequest request)
+    {
+        try
+        {
+            Console.WriteLine($"[DEBUG] Adding comment to task {id}: {request.Content}");
+            var userId = GetUserId();
+            var response = await _taskService.AddCommentAsync(id, request, userId);
+            return Ok(response);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ERROR] AddComment failed: {ex.Message}");
+            return StatusCode(500, ex.Message);
         }
     }
 
@@ -129,7 +162,11 @@ public class TaskController : ControllerBase
 
     private Guid GetUserId()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        // Try multiple standard claim types for User ID
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+                        ?? User.FindFirst("sub")?.Value 
+                        ?? User.FindFirst("nameid")?.Value;
+
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
         {
             throw new UnauthorizedAccessException("Invalid user ID");

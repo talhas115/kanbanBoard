@@ -31,6 +31,11 @@ public class MoveTaskRequest
     public string? NewStatus { get; set; }
 }
 
+public class AssignTaskRequest
+{
+    public Guid? AssigneeId { get; set; }
+}
+
 public class AssignmentHistoryResponse
 {
     public Guid Id { get; set; }
@@ -58,6 +63,7 @@ public class TaskResponse
     public string AssigneeEmail { get; set; } = string.Empty;
     public List<AssignmentHistoryResponse> History { get; set; } = new();
     public List<WorkLogResponse> WorkLogs { get; set; } = new();
+    public List<CommentResponse> Comments { get; set; } = new();
 }
 
 public class WorkLogResponse
@@ -95,4 +101,20 @@ public class GlobalTimeReportResponse
 {
     public List<TimeReportResponse> TaskReports { get; set; } = new List<TimeReportResponse>();
     public decimal GlobalTotalHours { get; set; }
+}
+
+public class CommentResponse
+{
+    public Guid Id { get; set; }
+    public Guid TaskId { get; set; }
+    public Guid UserId { get; set; }
+    public string UserEmail { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+}
+
+public class CommentRequest
+{
+    [Required]
+    public string Content { get; set; } = string.Empty;
 }

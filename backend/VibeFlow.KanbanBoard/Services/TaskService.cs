@@ -3,6 +3,8 @@ using VibeFlow.KanbanBoard.Data;
 using VibeFlow.KanbanBoard.DTOs;
 using VibeFlow.KanbanBoard.Models;
 using VibeFlow.KanbanBoard.Repositories;
+using Microsoft.AspNetCore.SignalR;
+using VibeFlow.KanbanBoard.Hubs;
 
 namespace VibeFlow.KanbanBoard.Services;
 
@@ -17,6 +19,7 @@ public interface ITaskService
     System.Threading.Tasks.Task MoveTaskAsync(Guid taskId, MoveTaskRequest request);
     System.Threading.Tasks.Task AssignTaskAsync(Guid taskId, Guid? assigneeId, Guid changedByUserId);
     System.Threading.Tasks.Task<WorkLogResponse> AddWorkLogAsync(Guid taskId, WorkLogRequest request, Guid userId);
+    System.Threading.Tasks.Task<CommentResponse> AddCommentAsync(Guid taskId, CommentRequest request, Guid userId);
     System.Threading.Tasks.Task<GlobalTimeReportResponse> GetTimeReportAsync();
 }
 
@@ -24,11 +27,13 @@ public class TaskService : ITaskService
 {
     private readonly ITaskRepository _taskRepository;
     private readonly ApplicationDbContext _context;
+    private readonly IHubContext<TaskHub> _hubContext;
 
-    public TaskService(ITaskRepository taskRepository, ApplicationDbContext context)
+    public TaskService(ITaskRepository taskRepository, ApplicationDbContext context, IHubContext<TaskHub> hubContext)
     {
         _taskRepository = taskRepository;
         _context = context;
+        _hubContext = hubContext;
     }
 
     public async System.Threading.Tasks.Task<TaskResponse> CreateTaskAsync(CreateTaskRequest request, Guid userId)
@@ -66,7 +71,9 @@ public class TaskService : ITaskService
                 .ThenInclude(w => w.User)
             .FirstOrDefaultAsync(t => t.Id == created.Id);
 
-        return MapToResponse(taskWithIncludes!);
+        var response = MapToResponse(taskWithIncludes!);
+        await _hubContext.Clients.All.SendAsync("TaskCreated", response);
+        return response;
     }
 
     public async System.Threading.Tasks.Task<TaskResponse> UpdateTaskAsync(Guid taskId, UpdateTaskRequest request, Guid userId)
@@ -76,12 +83,10 @@ public class TaskService : ITaskService
 
         if (!string.IsNullOrEmpty(request.Title))
             task.Title = request.Title.Trim();
-        
-        if (request.Description != null)
-            task.Description = request.Description;
-        
-        if (request.DueDate.HasValue)
-            task.DueDate = request.DueDate;
+
+        // Always apply description and dueDate — allows clearing them
+        task.Description = request.Description ?? string.Empty;
+        task.DueDate = request.DueDate; // null clears the date
 
         if (request.AssigneeId != task.AssigneeId)
         {
@@ -98,12 +103,15 @@ public class TaskService : ITaskService
         }
 
         var updated = await _taskRepository.GetByIdAsync(taskId);
-        return MapToResponse(updated);
+        var response = MapToResponse(updated);
+        await _hubContext.Clients.All.SendAsync("TaskUpdated", response);
+        return response;
     }
 
     public async System.Threading.Tasks.Task DeleteTaskAsync(Guid taskId)
     {
         await _taskRepository.DeleteAsync(taskId);
+        await _hubContext.Clients.All.SendAsync("TaskDeleted", taskId);
     }
 
     public async System.Threading.Tasks.Task<TaskResponse> GetTaskAsync(Guid taskId)
@@ -128,14 +136,21 @@ public class TaskService : ITaskService
     public async System.Threading.Tasks.Task MoveTaskAsync(Guid taskId, MoveTaskRequest request)
     {
         await _taskRepository.UpdateOrderAsync(taskId, request.NewOrder, request.NewStatus);
+        var task = await _taskRepository.GetByIdAsync(taskId);
+        await _hubContext.Clients.All.SendAsync("TaskMoved", MapToResponse(task));
     }
 
     public async System.Threading.Tasks.Task AssignTaskAsync(Guid taskId, Guid? assigneeId, Guid changedByUserId)
     {
+        Console.WriteLine($"[DEBUG] Service: Assigning Task {taskId} to {assigneeId} by {changedByUserId}");
         var task = await _taskRepository.GetByIdAsync(taskId);
         if (task == null) throw new KeyNotFoundException("Task not found");
 
-        if (task.AssigneeId == assigneeId) return;
+        if (task.AssigneeId == assigneeId) 
+        {
+            Console.WriteLine("[DEBUG] Assignee unchanged, skipping.");
+            return;
+        }
 
         var history = new AssignmentHistory
         {
@@ -147,9 +162,56 @@ public class TaskService : ITaskService
             ChangedAt = DateTime.UtcNow
         };
 
-        task.AssigneeId = assigneeId;
-        _context.AssignmentHistories.Add(history);
+        try 
+        {
+            task.AssigneeId = assigneeId;
+            _context.AssignmentHistories.Add(history);
+            await _context.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ERROR] Failed to assign task: {ex.Message}");
+            if (ex.InnerException != null) Console.WriteLine($"[INNER ERROR] {ex.InnerException.Message}");
+            throw;
+        }
+
+        var updatedTask = await _taskRepository.GetByIdAsync(taskId);
+        if (updatedTask != null)
+        {
+            await _hubContext.Clients.All.SendAsync("TaskAssigned", MapToResponse(updatedTask));
+        }
+    }
+
+    public async System.Threading.Tasks.Task<CommentResponse> AddCommentAsync(Guid taskId, CommentRequest request, Guid userId)
+    {
+        var task = await _taskRepository.GetByIdAsync(taskId);
+        if (task == null) throw new KeyNotFoundException("Task not found");
+
+        var comment = new Comment
+        {
+            Id = Guid.NewGuid(),
+            TaskId = taskId,
+            UserId = userId,
+            Content = request.Content,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Comments.Add(comment);
         await _context.SaveChangesAsync();
+
+        var user = await _context.Users.FindAsync(userId);
+        var response = new CommentResponse
+        {
+            Id = comment.Id,
+            TaskId = comment.TaskId,
+            UserId = comment.UserId,
+            UserEmail = user?.Email ?? string.Empty,
+            Content = comment.Content,
+            CreatedAt = comment.CreatedAt
+        };
+
+        await _hubContext.Clients.All.SendAsync("CommentAdded", response);
+        return response;
     }
 
     public async System.Threading.Tasks.Task<WorkLogResponse> AddWorkLogAsync(Guid taskId, WorkLogRequest request, Guid userId)
@@ -174,7 +236,7 @@ public class TaskService : ITaskService
         await _context.SaveChangesAsync();
 
         var user = await _context.Users.FindAsync(userId);
-        return new WorkLogResponse
+        var response = new WorkLogResponse
         {
             Id = workLog.Id,
             TaskId = workLog.TaskId,
@@ -184,23 +246,27 @@ public class TaskService : ITaskService
             Description = workLog.Description,
             LoggedAt = workLog.LoggedAt
         };
+
+        await _hubContext.Clients.All.SendAsync("WorkLogged", response);
+        return response;
     }
 
     public async System.Threading.Tasks.Task<GlobalTimeReportResponse> GetTimeReportAsync()
     {
-        var report = await _context.Tasks
+        var tasks = await _context.Tasks
             .Include(t => t.Assignee)
             .Include(t => t.WorkLogs)
-            .Select(t => new TimeReportResponse
-            {
-                TaskId = t.Id,
-                TaskTitle = t.Title,
-                Status = t.Status,
-                AssigneeId = t.AssigneeId,
-                AssigneeEmail = t.Assignee != null ? t.Assignee.Email : null,
-                TotalHours = t.WorkLogs.Sum(wl => wl.Hours)
-            })
             .ToListAsync();
+
+        var report = tasks.Select(t => new TimeReportResponse
+        {
+            TaskId = t.Id,
+            TaskTitle = t.Title,
+            Status = t.Status,
+            AssigneeId = t.AssigneeId,
+            AssigneeEmail = t.Assignee != null ? t.Assignee.Email : null,
+            TotalHours = t.WorkLogs?.Sum(wl => wl.Hours) ?? 0
+        }).ToList();
 
         var globalTotal = report.Sum(r => r.TotalHours);
 
@@ -250,7 +316,18 @@ public class TaskService : ITaskService
                     Hours = w.Hours,
                     Description = w.Description ?? string.Empty,
                     LoggedAt = w.LoggedAt
-                }).ToList() ?? new List<WorkLogResponse>()
+                }).ToList() ?? new List<WorkLogResponse>(),
+            Comments = task.Comments?
+                .OrderByDescending(c => c.CreatedAt)
+                .Select(c => new CommentResponse
+                {
+                    Id = c.Id,
+                    TaskId = c.TaskId,
+                    UserId = c.UserId,
+                    UserEmail = c.User?.Email ?? string.Empty,
+                    Content = c.Content,
+                    CreatedAt = c.CreatedAt
+                }).ToList() ?? new List<CommentResponse>()
         };
     }
 }

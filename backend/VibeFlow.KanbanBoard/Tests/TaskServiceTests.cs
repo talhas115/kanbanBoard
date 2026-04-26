@@ -5,6 +5,9 @@ using VibeFlow.KanbanBoard.Models;
 using VibeFlow.KanbanBoard.Repositories;
 using VibeFlow.KanbanBoard.Services;
 using Xunit;
+using Moq;
+using Microsoft.AspNetCore.SignalR;
+using VibeFlow.KanbanBoard.Hubs;
 using Task = System.Threading.Tasks.Task;
 
 namespace VibeFlow.KanbanBoard.Tests;
@@ -21,7 +24,15 @@ public class TaskServiceTests
             .Options;
         _context = new ApplicationDbContext(options);
         var repository = new TaskRepository(_context);
-        _service = new TaskService(repository, _context);
+        
+        var mockHubContext = new Mock<IHubContext<TaskHub>>();
+        var mockClients = new Mock<IHubClients>();
+        var mockClientProxy = new Mock<IClientProxy>();
+        
+        mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
+        mockClients.Setup(c => c.All).Returns(mockClientProxy.Object);
+
+        _service = new TaskService(repository, _context, mockHubContext.Object);
     }
 
     [Fact]

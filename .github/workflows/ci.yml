@@ -1,0 +1,48 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+    - name: Restore dependencies
+      run: dotnet restore backend/VibeFlow.KanbanBoard
+    - name: Build
+      run: dotnet build backend/VibeFlow.KanbanBoard --no-restore
+    - name: Test
+      run: dotnet test backend/VibeFlow.KanbanBoard --no-build --verbosity normal
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+    - name: Install dependencies
+      run: npm install
+      working-directory: ./frontend
+    - name: Run tests
+      run: npm test -- --run
+      working-directory: ./frontend
+
+  build-docker:
+    needs: [backend-tests, frontend-tests]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build Backend Image
+      run: docker build -t vibeflow-backend ./backend
+    - name: Build Frontend Image
+      run: docker build -t vibeflow-frontend ./frontend

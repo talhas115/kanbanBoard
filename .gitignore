@@ -25,3 +25,15 @@ Thumbs.db
 
 # Docker volumes
 pgdata/
+
+# Local SQLite database (local dev only — Docker uses PostgreSQL)
+*.db
+*.db-shm
+*.db-wal
+
+# Presentation / local-only docs
+development_and_fixes.md
+README_V2.md
+
+# Startup logs
+startup_log.txt

@@ -20,8 +20,8 @@ public class User
     [Required]
     public DateTime CreatedAt { get; set; }
 
-    public ICollection<Task> CreatedTasks { get; set; }
-    public ICollection<Task> AssignedTasks { get; set; }
-    public ICollection<AssignmentHistory> AssignmentHistories { get; set; }
-    public ICollection<WorkLog> WorkLogs { get; set; }
+    public ICollection<Task> CreatedTasks { get; set; } = new List<Task>();
+    public ICollection<Task> AssignedTasks { get; set; } = new List<Task>();
+    public ICollection<WorkLog> WorkLogs { get; set; } = new List<WorkLog>();
+    public ICollection<Comment> Comments { get; set; } = new List<Comment>();
 }

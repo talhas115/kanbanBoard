@@ -2,31 +2,70 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 using VibeFlow.KanbanBoard.Data;
 using VibeFlow.KanbanBoard.Repositories;
 using VibeFlow.KanbanBoard.Services;
+using VibeFlow.KanbanBoard.Hubs;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Resources;
+
+// Ensure standard JWT claim names are used
+JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddSignalR();
 
-// Add CORS
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing
+        .AddSource("VibeFlow.KanbanBoard")
+        .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("VibeFlow.API"))
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddConsoleExporter());
+
+// Add CORS — covers local dev and Docker nginx origins
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend",
         policy =>
         {
-            policy.WithOrigins("http://localhost:3000", "http://localhost:8080", "http://localhost:8085")
+            policy.WithOrigins(
+                    "http://localhost:3000",
+                    "http://127.0.0.1:3000",
+                    "http://localhost:8080",
+                    "http://localhost:8085",
+                    "http://localhost"        // Docker nginx (internal port 80)
+                )
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
         });
 });
 
+// Auto-detect database provider:
+// PostgreSQL when connection string starts with "Host=" (Docker/production)
+// SQLite otherwise (local development — zero config needed)
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? "Data Source=kanban.db";
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    if (connectionString.StartsWith("Host=", StringComparison.OrdinalIgnoreCase)
+        || connectionString.StartsWith("Server=", StringComparison.OrdinalIgnoreCase))
+    {
+        options.UseNpgsql(connectionString);
+    }
+    else
+    {
+        options.UseSqlite(connectionString);
+    }
+});
 
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("Jwt:Secret is not configured");
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
@@ -55,11 +94,13 @@ builder.Services.AddScoped<ITaskService, TaskService>();
 
 var app = builder.Build();
 
-// Apply migrations automatically
+// Apply migrations and seed data
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    dbContext.Database.Migrate();
+    // dbContext.Database.EnsureDeleted(); // Removed to ensure data persistence
+    dbContext.Database.EnsureCreated();
+    DbInitializer.Seed(dbContext);
 }
 
 if (app.Environment.IsDevelopment())
@@ -74,5 +115,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<TaskHub>("/taskhub");
 
 app.Run();

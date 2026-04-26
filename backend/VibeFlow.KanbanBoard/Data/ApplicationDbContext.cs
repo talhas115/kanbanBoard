@@ -11,6 +11,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Models.Task> Tasks { get; set; }
     public DbSet<AssignmentHistory> AssignmentHistories { get; set; }
     public DbSet<WorkLog> WorkLogs { get; set; }
+    public DbSet<Comment> Comments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,7 +35,7 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<AssignmentHistory>()
             .HasOne(ah => ah.OldAssignee)
-            .WithMany(u => u.AssignmentHistories)
+            .WithMany()
             .HasForeignKey(ah => ah.OldAssigneeId)
             .OnDelete(DeleteBehavior.Restrict);
 
@@ -60,6 +61,18 @@ public class ApplicationDbContext : DbContext
             .HasOne(wl => wl.User)
             .WithMany(u => u.WorkLogs)
             .HasForeignKey(wl => wl.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Comment>()
+            .HasOne(c => c.Task)
+            .WithMany(t => t.Comments)
+            .HasForeignKey(c => c.TaskId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Comment>()
+            .HasOne(c => c.User)
+            .WithMany(u => u.Comments)
+            .HasForeignKey(c => c.UserId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
