@@ -48,23 +48,12 @@ builder.Services.AddCors(options =>
         });
 });
 
-// Auto-detect database provider:
-// PostgreSQL when connection string starts with "Host=" (Docker/production)
-// SQLite otherwise (local development — zero config needed)
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Data Source=kanban.db";
+// Database: use PostgreSQL exclusively (standardized for both dev and prod)
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    if (connectionString.StartsWith("Host=", StringComparison.OrdinalIgnoreCase)
-        || connectionString.StartsWith("Server=", StringComparison.OrdinalIgnoreCase))
-    {
-        options.UseNpgsql(connectionString);
-    }
-    else
-    {
-        options.UseSqlite(connectionString);
-    }
+    options.UseNpgsql(connectionString);
 });
 
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("Jwt:Secret is not configured");

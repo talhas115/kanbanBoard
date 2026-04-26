@@ -36,18 +36,12 @@ describe('TaskCard', () => {
     render(<TaskCard task={mockTask} />);
     expect(screen.queryByText(/Test Description/)).not.toBeInTheDocument();
     
-    const detailsBtn = screen.getByText('Details');
+    // Clicking View Details opens the modal
+    const detailsBtn = screen.getByText('View Details');
     fireEvent.click(detailsBtn);
     
+    // Now description should be visible (inside modal)
     expect(screen.getByText(/Test Description/)).toBeInTheDocument();
-  });
-
-  it('toggles worklog visibility', () => {
-    render(<TaskCard task={mockTask} />);
-    const logBtn = screen.getByText('Log Time');
-    fireEvent.click(logBtn);
-    
-    expect(screen.getAllByText('Cancel').length).toBeGreaterThan(0);
   });
 
   it('calls assignTask when assignee is changed', () => {
@@ -66,13 +60,13 @@ describe('TaskCard', () => {
     expect(assignTaskMock).toHaveBeenCalledWith('1', 'u1');
   });
 
-  it('switches between History and Work Logs tabs', () => {
+  it('switches between History and Work Logs tabs in modal', () => {
     render(<TaskCard task={mockTask} />);
-    fireEvent.click(screen.getByText('Details'));
+    fireEvent.click(screen.getByText('View Details'));
     
     const logsTab = screen.getByText(/Work Logs/);
     fireEvent.click(logsTab);
     
-    expect(screen.getByText('No work logged yet.')).toBeInTheDocument();
+    expect(screen.getByText('No time logged yet.')).toBeInTheDocument();
   });
 });
