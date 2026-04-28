@@ -84,9 +84,33 @@ public class TaskService : ITaskService
         if (!string.IsNullOrEmpty(request.Title))
             task.Title = request.Title.Trim();
 
+        // Validation: Due date cannot be in the past (unless it was already in the past and hasn't changed)
+        if (request.DueDate.HasValue && request.DueDate.Value.Date < DateTime.UtcNow.Date && request.DueDate != task.DueDate)
+        {
+            throw new ArgumentException("Due date cannot be in the past");
+        }
+
+        // History: Log due date changes
+        if (request.DueDate != task.DueDate)
+        {
+            var oldDate = task.DueDate?.ToString("yyyy-MM-dd") ?? "None";
+            var newDate = request.DueDate?.ToString("yyyy-MM-dd") ?? "None";
+            var historyComment = new Comment
+            {
+                Id = Guid.NewGuid(),
+                TaskId = taskId,
+                UserId = userId,
+                Content = $"📅 Due date changed from {oldDate} to {newDate}",
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Comments.Add(historyComment);
+        }
+
         // Always apply description and dueDate — allows clearing them
         task.Description = request.Description ?? string.Empty;
         task.DueDate = request.DueDate; // null clears the date
+
+        Console.WriteLine($"[DEBUG] Updating Task {taskId}: Assignee in request={request.AssigneeId}, Current={task.AssigneeId}");
 
         if (request.AssigneeId != task.AssigneeId)
         {
@@ -101,6 +125,8 @@ public class TaskService : ITaskService
         {
             await _taskRepository.UpdateAsync(task);
         }
+        
+        await _context.SaveChangesAsync();
 
         var updated = await _taskRepository.GetByIdAsync(taskId);
         var response = MapToResponse(updated);

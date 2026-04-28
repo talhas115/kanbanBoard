@@ -140,22 +140,25 @@ const KanbanBoard = () => {
             </div>
 
             {/* User Avatars Filter */}
-            <div className="flex items-center -space-x-2 overflow-hidden px-1">
-              {users.slice(0, 5).map(u => (
-                <button
-                  key={u.id}
-                  onClick={() => setFilterUser(filterUser === u.id ? '' : u.id)}
-                  title={u.email}
-                  className={`relative inline-flex items-center justify-center h-8 w-8 rounded-full ring-2 ring-white dark:ring-slate-900 text-[10px] font-bold transition-all hover:scale-110 z-10 ${filterUser === u.id ? 'bg-brand text-white' : 'bg-gray-200 dark:bg-slate-800 text-gray-600 dark:text-gray-400'}`}
-                >
-                  {getUserInitials(u.email)}
-                </button>
-              ))}
-              {users.length > 5 && (
-                 <span className="flex items-center justify-center h-8 w-8 rounded-full bg-gray-100 dark:bg-slate-800 text-[10px] font-bold text-gray-500 ring-2 ring-white dark:ring-slate-900">
-                   +{users.length - 5}
-                 </span>
-              )}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1">Filter by Assignee:</span>
+              <div className="flex items-center -space-x-2 overflow-hidden px-1">
+                {[...users].sort((a,b) => a.email.localeCompare(b.email)).slice(0, 10).map(u => (
+                  <button
+                    key={u.id}
+                    onClick={() => setFilterUser(filterUser === u.id ? '' : u.id)}
+                    title={u.email}
+                    className={`relative inline-flex items-center justify-center h-8 w-8 rounded-full ring-2 ring-white dark:ring-slate-900 text-[10px] font-bold transition-all hover:scale-110 z-10 ${filterUser === u.id ? 'bg-brand text-white' : 'bg-gray-200 dark:bg-slate-800 text-gray-600 dark:text-gray-400'}`}
+                  >
+                    {getUserInitials(u.email)}
+                  </button>
+                ))}
+                {users.length > 10 && (
+                   <span className="flex items-center justify-center h-8 w-8 rounded-full bg-gray-100 dark:bg-slate-800 text-[10px] font-bold text-gray-500 ring-2 ring-white dark:ring-slate-900">
+                     +{users.length - 10}
+                   </span>
+                )}
+              </div>
             </div>
 
             <div className="h-6 w-px bg-gray-200 dark:bg-slate-800 mx-1"></div>

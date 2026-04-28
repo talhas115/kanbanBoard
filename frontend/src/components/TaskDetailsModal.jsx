@@ -39,12 +39,18 @@ const TaskDetailsModal = ({ task, onClose }) => {
     e.preventDefault();
     if (!workHours || !workDescription.trim()) return;
     setIsSubmitting(true);
+    
+    // Capture values and clear immediately for UI snappiness
+    const hours = parseFloat(workHours);
+    const desc = workDescription;
+    setWorkHours('');
+    setWorkDescription('');
+    
     try {
-      await addWorkLog(task.id, parseFloat(workHours), workDescription);
-      setWorkHours('');
-      setWorkDescription('');
+      await addWorkLog(task.id, hours, desc);
     } catch (err) {
       console.error(err);
+      // Restore on error if preferred, but usually clearing is better
     } finally {
       setIsSubmitting(false);
     }
@@ -57,35 +63,49 @@ const TaskDetailsModal = ({ task, onClose }) => {
     }
     setIsSavingEdit(true);
     try {
+      // Explicitly map only required fields to avoid sending nested arrays (history, workLogs)
+      // which can cause binding issues or stale data overwrites in the backend.
       await updateTask(task.id, {
         title: task.title,
         description: editedDescription,
-        dueDate: task.dueDate || null,
+        dueDate: task.dueDate,
+        assigneeId: task.assigneeId || null,
         status: task.status,
-        order: task.order,
+        order: task.order
       });
       setEditingDescription(false);
     } catch (err) {
       console.error('Failed to save description:', err);
+      alert('Failed to save description. Please try again.');
     } finally {
       setIsSavingEdit(false);
     }
   };
 
   const handleSaveDueDate = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    if (editedDueDate && editedDueDate < today) {
+      alert("Due date cannot be in the past");
+      return;
+    }
+
     setIsSavingEdit(true);
     try {
       const newDueDate = editedDueDate ? new Date(editedDueDate).toISOString() : null;
+      console.log('Saving due date:', newDueDate);
+      
       await updateTask(task.id, {
         title: task.title,
         description: task.description,
         dueDate: newDueDate,
+        assigneeId: task.assigneeId || null,
         status: task.status,
-        order: task.order,
+        order: task.order
       });
       setEditingDueDate(false);
     } catch (err) {
       console.error('Failed to save due date:', err);
+      alert('Failed to save due date. Ensure the date is valid and not in the past.');
     } finally {
       setIsSavingEdit(false);
     }
@@ -183,22 +203,25 @@ const TaskDetailsModal = ({ task, onClose }) => {
 
             {/* Tabs */}
             <div className="flex gap-6 border-b border-slate-100 dark:border-slate-800 mb-6">
-              {['comments', 'worklogs', 'history'].map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`pb-4 text-sm font-bold capitalize transition-all relative ${
-                    activeTab === tab 
-                      ? 'text-brand' 
-                      : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'
-                  }`}
-                >
-                  {tab === 'worklogs' ? `Work Logs (${task.workLogs?.length || 0})` : 
-                   tab === 'comments' ? `Comments (${task.comments?.length || 0})` : 
-                   'History'}
-                  {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-1 bg-brand rounded-full"></div>}
-                </button>
-              ))}
+              {['comments', 'worklogs', 'history'].map(tab => {
+                const displayComments = task.comments?.filter(c => !c.content.startsWith('📅')) || [];
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`pb-4 text-sm font-bold capitalize transition-all relative ${
+                      activeTab === tab 
+                        ? 'text-brand' 
+                        : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    {tab === 'worklogs' ? `Work Logs (${task.workLogs?.length || 0})` : 
+                     tab === 'comments' ? `Comments (${displayComments.length})` : 
+                     'History'}
+                    {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-1 bg-brand rounded-full"></div>}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Tab Content */}
@@ -230,7 +253,7 @@ const TaskDetailsModal = ({ task, onClose }) => {
 
                   {/* Comments List */}
                   <div className="space-y-6">
-                    {task.comments?.map(comment => (
+                    {(task.comments?.filter(c => !c.content.startsWith('📅')) || []).map(comment => (
                       <div key={comment.id} className="flex gap-4 group">
                         <div className="h-10 w-10 shrink-0 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center font-bold text-sm">
                           {getUserInitials(comment.userEmail)}
@@ -246,7 +269,7 @@ const TaskDetailsModal = ({ task, onClose }) => {
                         </div>
                       </div>
                     ))}
-                    {!task.comments?.length && (
+                    {!(task.comments?.filter(c => !c.content.startsWith('📅')).length) && (
                       <div className="text-center py-10">
                         <div className="inline-flex p-4 rounded-full bg-slate-50 dark:bg-slate-800/50 mb-3 text-slate-300">
                           <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -321,7 +344,11 @@ const TaskDetailsModal = ({ task, onClose }) => {
 
               {activeTab === 'history' && (
                 <div className="relative pl-8 space-y-8 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-100 dark:before:bg-slate-800">
-                  {task.history?.map((h, i) => (
+                  {/* Combine Assignment History and Due Date Change Comments */}
+                  {[
+                    ...(task.history?.map(h => ({ ...h, type: 'assignment' })) || []),
+                    ...(task.comments?.filter(c => c.content.startsWith('📅'))?.map(c => ({ ...c, type: 'duedate', changedAt: c.createdAt, changedByEmail: c.userEmail })) || [])
+                  ].sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt)).map((h, i) => (
                     <div key={h.id} className="relative flex flex-col gap-1">
                       <div className={`absolute -left-[27px] top-1.5 h-3 w-3 rounded-full border-2 border-white dark:border-slate-900 
                         ${i === 0 ? 'bg-brand' : 'bg-slate-300 dark:bg-slate-600'}`}></div>
@@ -330,10 +357,16 @@ const TaskDetailsModal = ({ task, onClose }) => {
                          <span className="text-slate-400 text-[10px] uppercase font-mono">{format(new Date(h.changedAt), 'MMM d, HH:mm')}</span>
                       </div>
                       <div className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
-                         <span>Changed assignee from</span>
-                         <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[11px] font-bold">{h.oldAssigneeEmail || 'Unassigned'}</code>
-                         <span>to</span>
-                         <code className="bg-brand/10 text-brand px-1.5 py-0.5 rounded text-[11px] font-bold">{h.newAssigneeEmail || 'Unassigned'}</code>
+                         {h.type === 'assignment' ? (
+                           <>
+                             <span>Changed assignee from</span>
+                             <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[11px] font-bold">{h.oldAssigneeEmail || 'Unassigned'}</code>
+                             <span>to</span>
+                             <code className="bg-brand/10 text-brand px-1.5 py-0.5 rounded text-[11px] font-bold">{h.newAssigneeEmail || 'Unassigned'}</code>
+                           </>
+                         ) : (
+                           <span>{h.content}</span>
+                         )}
                       </div>
                     </div>
                   ))}
@@ -378,6 +411,7 @@ const TaskDetailsModal = ({ task, onClose }) => {
                           type="date"
                           autoFocus
                           value={editedDueDate}
+                          min={new Date().toISOString().split('T')[0]} // Disable past dates
                           onChange={(e) => setEditedDueDate(e.target.value)}
                           className="w-full text-xs bg-white dark:bg-slate-900 border-2 border-brand/40 rounded-lg px-2 py-1.5 text-slate-900 dark:text-slate-100 focus:border-brand focus:ring-0 transition-all"
                         />
@@ -421,7 +455,7 @@ const TaskDetailsModal = ({ task, onClose }) => {
                   className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-medium focus:border-brand focus:ring-0 cursor-pointer"
                 >
                   <option value="">Unassigned</option>
-                  {users.map(u => (
+                  {[...users].sort((a,b) => a.email.localeCompare(b.email)).map(u => (
                     <option key={u.id} value={u.id}>{u.email}</option>
                   ))}
                 </select>
@@ -436,19 +470,6 @@ const TaskDetailsModal = ({ task, onClose }) => {
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">{task.createdByEmail}</span>
                 </div>
               </div>
-            </div>
-
-            {/* Actions */}
-            <div className="mt-auto pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
-                 <button 
-                  onClick={() => { if(window.confirm('Delete this task?')) useTaskStore.getState().deleteTask(task.id); onClose(); }}
-                  className="flex items-center justify-center gap-2 w-full p-3 rounded-2xl text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-xs font-bold transition-all border border-transparent hover:border-red-100 dark:hover:border-red-900/30"
-                 >
-                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                   </svg>
-                   Delete Task
-                 </button>
             </div>
 
           </div>
