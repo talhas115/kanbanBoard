@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" /> <!-- slate-900 -->
+      <stop offset="100%" stop-color="#312e81" /> <!-- indigo-900 -->
+    </linearGradient>
+    
+    <!-- Card Style -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="10" stdDeviation="15" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="600" fill="url(#bg)" />
+
+  <!-- Columns -->
+  <!-- Col 1 -->
+  <rect x="50" y="50" width="200" height="500" rx="15" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)" stroke-width="2"/>
+  <text x="150" y="90" fill="#94a3b8" font-family="sans-serif" font-weight="bold" font-size="14" text-anchor="middle" letter-spacing="1">BACKLOG</text>
+
+  <!-- Col 2 -->
+  <rect x="300" y="50" width="200" height="500" rx="15" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)" stroke-width="2"/>
+  <text x="400" y="90" fill="#818cf8" font-family="sans-serif" font-weight="bold" font-size="14" text-anchor="middle" letter-spacing="1">IN PROGRESS</text>
+
+  <!-- Col 3 -->
+  <rect x="550" y="50" width="200" height="500" rx="15" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)" stroke-width="2"/>
+  <text x="650" y="90" fill="#34d399" font-family="sans-serif" font-weight="bold" font-size="14" text-anchor="middle" letter-spacing="1">DONE</text>
+
+  <!-- Cards -->
+  
+  <!-- Card 1: Static in ToDo -->
+  <g transform="translate(70, 120)">
+    <rect width="160" height="80" rx="10" fill="rgba(255,255,255,0.95)" filter="url(#shadow)"/>
+    <rect x="15" y="15" width="40" height="8" rx="4" fill="#818cf8" />
+    <rect x="15" y="35" width="100" height="6" rx="3" fill="#cbd5e1" />
+    <rect x="15" y="48" width="70" height="6" rx="3" fill="#cbd5e1" />
+    <circle cx="140" cy="50" r="10" fill="#e2e8f0" />
+    <!-- Floating animation -->
+    <animateTransform attributeName="transform" type="translate" values="70,120; 70,115; 70,120" dur="4s" repeatCount="indefinite"/>
+  </g>
+
+  <!-- Card 2: Moving from ToDo to In Progress to Done -->
+  <g>
+    <rect width="160" height="80" rx="10" fill="rgba(255,255,255,0.95)" filter="url(#shadow)"/>
+    <rect x="15" y="15" width="40" height="8" rx="4" fill="#f43f5e" />
+    <rect x="15" y="35" width="120" height="6" rx="3" fill="#94a3b8" />
+    <rect x="15" y="48" width="90" height="6" rx="3" fill="#94a3b8" />
+    <circle cx="140" cy="50" r="10" fill="#e2e8f0" />
+    
+    <animateTransform attributeName="transform" type="translate" 
+       values="70,220; 70,220; 320,120; 320,120; 570,120; 570,120; 70,220" 
+       keyTimes="0; 0.2; 0.4; 0.6; 0.8; 0.95; 1"
+       dur="12s" repeatCount="indefinite"/>
+  </g>
+
+  <!-- Card 3: Moving from In Progress to Done -->
+  <g>
+    <rect width="160" height="80" rx="10" fill="rgba(255,255,255,0.95)" filter="url(#shadow)"/>
+    <rect x="15" y="15" width="40" height="8" rx="4" fill="#f59e0b" />
+    <rect x="15" y="35" width="80" height="6" rx="3" fill="#94a3b8" />
+    <rect x="15" y="48" width="110" height="6" rx="3" fill="#94a3b8" />
+    <circle cx="140" cy="50" r="10" fill="#e2e8f0" />
+    
+    <animateTransform attributeName="transform" type="translate" 
+       values="320,220; 320,220; 570,220; 570,220; 320,220" 
+       keyTimes="0; 0.3; 0.6; 0.9; 1"
+       dur="8s" repeatCount="indefinite"/>
+  </g>
+
+  <!-- Interactive elements floating around -->
+  <circle cx="100" cy="500" r="40" fill="rgba(129, 140, 248, 0.1)" filter="blur(10px)">
+     <animateTransform attributeName="transform" type="translate" values="0,0; 20,-20; 0,0" dur="5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="700" cy="150" r="60" fill="rgba(52, 211, 153, 0.1)" filter="blur(15px)">
+     <animateTransform attributeName="transform" type="translate" values="0,0; -30,20; 0,0" dur="7s" repeatCount="indefinite"/>
+  </circle>
+</svg>
